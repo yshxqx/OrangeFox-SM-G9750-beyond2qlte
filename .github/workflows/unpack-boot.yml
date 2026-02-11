@@ -1,25 +1,89 @@
-name: 解包 boot.img
-on: workflow_dispatch
+name: Unpack boot.img from Repository
+
+on:
+  # 手动触发：允许指定 boot.img 在仓库中的路径（默认为根目录的 boot.img）
+  workflow_dispatch:
+    inputs:
+      bootimg_path:
+        description: 'boot.img 在仓库中的路径（例如 boot.img 或 device/boot.img）'
+        required: false
+        default: 'boot.img'
+        type: string
+
+  # 可选：当 push 修改根目录的 boot.img 时自动运行
+  push:
+    paths:
+      - 'boot.img'
+    branches:
+      - main
+      - master
 
 jobs:
   unpack:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: 安装依赖
-        run: sudo apt update && sudo apt install -y git cpio lzop
-        
-      - name: 克隆 AIK 并解包
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 确定 boot.img 路径
+        id: set_path
         run: |
-          # 克隆官方仓库（已验证有完整脚本）
-          git clone https://github.com/osm0sis/Android-Image-Kitchen.git aik
-          # 进入目录 + 授权 + 强制解包（忽略格式警告）
-          cd aik && chmod +x unpackimg.sh && ./unpackimg.sh ../boot.img -f
-          
-      - name: 上传结果
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "BOOTIMG_PATH=${{ github.event.inputs.bootimg_path }}" >> $GITHUB_ENV
+          else
+            # push 触发时默认使用 boot.img
+            echo "BOOTIMG_PATH=boot.img" >> $GITHUB_ENV
+          fi
+
+      - name: 检查 boot.img 是否存在
+        run: |
+          if [ ! -f "${{ env.BOOTIMG_PATH }}" ]; then
+            echo "错误：未找到 ${{ env.BOOTIMG_PATH }}"
+            exit 1
+          fi
+          echo "将解包: ${{ env.BOOTIMG_PATH }}"
+          file "${{ env.BOOTIMG_PATH }}"
+
+      - name: 获取 magiskboot（从 Magisk APK 提取）
+        run: |
+          MAGISK_APK_URL=$(curl -s https://api.github.com/repos/topjohnwu/Magisk/releases/latest \
+            | grep "browser_download_url.*Magisk-.*\.apk" \
+            | cut -d '"' -f 4)
+          wget -O magisk.apk "$MAGISK_APK_URL"
+          unzip magisk.apk "lib/x86_64/libmagiskboot.so" -d magisk_extract
+          mv magisk_extract/lib/x86_64/libmagiskboot.so magiskboot
+          chmod +x magiskboot
+          rm -rf magisk.apk magisk_extract
+          echo "magiskboot 就绪"
+
+      - name: 使用 magiskboot 解包 boot.img
+        run: |
+          ./magiskboot unpack "${{ env.BOOTIMG_PATH }}"
+          ls -la
+
+      - name: （可选）解压 ramdisk.cpio
+        run: |
+          if [ -f "ramdisk.cpio" ]; then
+            echo "解压 ramdisk.cpio → ramdisk/ 目录"
+            mkdir -p ramdisk
+            (cd ramdisk && cpio -idm --quiet < ../ramdisk.cpio)
+            ls -la ramdisk/
+          else
+            echo "未发现 ramdisk.cpio，跳过解压"
+          fi
+
+      - name: 上传解包产物
         uses: actions/upload-artifact@v4
         with:
-          name: 解包结果
-          path: aik/split_img/
-          if-no-files-found: ignore
+          name: unpacked_boot_${{ github.run_id }}
+          path: |
+            kernel
+            ramdisk.cpio
+            ramdisk/
+            second
+            dtb
+            dtbo
+            *.img
+            header
+            ${{ env.BOOTIMG_PATH }}
+          if-no-files-found: warn
