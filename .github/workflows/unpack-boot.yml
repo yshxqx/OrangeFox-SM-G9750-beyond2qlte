@@ -1,40 +1,30 @@
-name: Unpack boot.img from Repository
+name: Extract Image.gz-dtb from boot.img
 
 on:
+  # 手动触发（无需输入参数）
   workflow_dispatch:
-    inputs:
-      bootimg_path:
-        description: 'boot.img 在仓库中的路径（例如 boot.img 或 device/boot.img）'
-        required: false
-        default: 'boot.img'
-        type: string
+  # 当 push 修改根目录 boot.img 时自动运行
   push:
     paths:
       - 'boot.img'
     branches:
       - main
-      - master
 
 jobs:
-  unpack:
+  extract:
     runs-on: ubuntu-latest
     steps:
       - name: 检出仓库
         uses: actions/checkout@v4
 
-      - name: 确定 boot.img 路径
-        id: set_path
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "BOOTIMG_PATH=${{ github.event.inputs.bootimg_path }}" >> $GITHUB_ENV
-          else
-            echo "BOOTIMG_PATH=boot.img" >> $GITHUB_ENV
-          fi
-
       - name: 检查 boot.img 是否存在
         run: |
-          [ -f "${{ env.BOOTIMG_PATH }}" ] || { echo "未找到 ${{ env.BOOTIMG_PATH }}"; exit 1; }
-          file "${{ env.BOOTIMG_PATH }}"
+          if [ ! -f "boot.img" ]; then
+            echo "❌ 仓库根目录未找到 boot.img"
+            exit 1
+          fi
+          echo "✅ 找到 boot.img"
+          file boot.img
 
       - name: 获取 magiskboot
         run: |
@@ -44,44 +34,23 @@ jobs:
           unzip magisk.apk "lib/x86_64/libmagiskboot.so" -d magisk_extract
           mv magisk_extract/lib/x86_64/libmagiskboot.so magiskboot
           chmod +x magiskboot
-          rm -rf magisk.apk magisk_extract
 
-      - name: 使用 magiskboot 解包 boot.img
-        run: |
-          ./magiskboot unpack "${{ env.BOOTIMG_PATH }}"
-          ls -la
+      - name: 解包 boot.img
+        run: ./magiskboot unpack boot.img
 
-      - name: 解压 ramdisk.cpio（可选）
-        run: |
-          if [ -f "ramdisk.cpio" ]; then
-            mkdir -p ramdisk
-            (cd ramdisk && cpio -idm --quiet < ../ramdisk.cpio)
-          fi
-
-      # ✅ 新增：提取 Image.gz-dtb（将解包出的 kernel 重命名）
       - name: 提取 Image.gz-dtb
         run: |
           if [ -f "kernel" ]; then
             cp kernel Image.gz-dtb
-            echo "✅ 成功提取 Image.gz-dtb（原始 kernel 已复制）"
+            echo "✅ Image.gz-dtb 提取成功"
             file Image.gz-dtb
           else
-            echo "⚠️ 未找到 kernel 文件，无法提取 Image.gz-dtb"
+            echo "⚠️ 未找到 kernel 文件，解包可能失败或格式特殊"
           fi
 
-      - name: 上传解包产物
+      - name: 上传 Image.gz-dtb
         uses: actions/upload-artifact@v4
         with:
-          name: unpacked_boot_${{ github.run_id }}
-          path: |
-            kernel
-            Image.gz-dtb          # ⬅️ 新增的 Image.gz-dtb 文件
-            ramdisk.cpio
-            ramdisk/
-            second
-            dtb
-            dtbo
-            *.img
-            header
-            ${{ env.BOOTIMG_PATH }}
-          if-no-files-found: warn
+          name: Image.gz-dtb_${{ github.run_id }}
+          path: Image.gz-dtb
+          if-no-files-found: error
