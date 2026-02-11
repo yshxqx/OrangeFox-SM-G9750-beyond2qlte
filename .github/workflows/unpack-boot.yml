@@ -1,47 +1,39 @@
 name: 自动解包 boot.img
-
 on:
-  workflow_dispatch:  # 手动触发运行
+  workflow_dispatch:
 
 jobs:
   unpack_bootimg:
     runs-on: ubuntu-latest
     steps:
-      # 1. 检出你的仓库（包含上传的 boot.img）
-      - name: 检出仓库
+      - name: 检出仓库（含boot.img）
         uses: actions/checkout@v4
 
-      # 2. 安装必要依赖
-      - name: 安装依赖
+      - name: 安装官方要求的依赖
         run: |
-          sudo apt update
-          sudo apt install -y git cpio
+          sudo apt update && sudo apt install -y wget tar gzip bzip2 lzop xz-utils cpio bsdmainutils openjdk-8-jre
+          sudo update-alternatives --set java /usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java
 
-      # 3. 直接克隆 AIK 仓库
-      - name: 克隆解包工具
-        run: git clone https://github.com/osm0sis/Android-Image-Kitchen.git aik
+      - name: 创建AIK目录
+        run: mkdir -p aik && cd aik
 
-      # 4. 调试：列出 aik 目录下的所有文件
-      - name: 列出 aik 目录文件
-        run: ls -la aik
+      - name: 下载XDA官方AIK-Linux v3.8完整包（含所有二进制/脚本）
+        run: wget -O aik-linux-v3.8.tar.gz https://xdaforums.com/attachments/aik-linux-v3-8-all-tar-gz.5492757/ && tar -xzvf aik-linux-v3.8.tar.gz -C ./aik --strip-components=1
 
-      # 5. 解包 boot.img（尝试执行所有可能的脚本名）
-      - name: 解包 boot.img
-        run: |
-          cd aik
-          # 先看一下有哪些 .sh 文件
-          ls -la *.sh
-          # 尝试执行正确的脚本
-          chmod +x unpackimg.sh || true
-          ./unpackimg.sh ../boot.img || true
-          # 如果上面失败，再试 unpacking.sh
-          chmod +x unpacking.sh || true
-          ./unpacking.sh ../boot.img || true
+      - name: 赋予脚本执行权限（官方标准操作）
+        run: chmod +x ./aik/unpackimg.sh ./aik/repackimg.sh ./aik/cleanup.sh
 
-      # 6. 上传解包后的内核文件
-      - name: 上传解包结果
+      - name: 执行解包（官方推荐命令，--local表示在当前目录操作）
+        run: ./aik/unpackimg.sh --local boot.img
+
+      - name: 列出解包结果（调试用，可查看生成的文件）
+        run: ls -la ./split_img/ ./ramdisk/
+
+      - name: 上传内核文件（兼容AIK官方两种输出名）
         uses: actions/upload-artifact@v4
         with:
-          name: Image.gz-dtb
-          path: aik/split_img/boot.img-zImage  # 或 aik/split_img/Image.gz-dtb
-          if-no-files-found: error
+          name: kernel-files
+          path: |
+            ./split_img/boot.img-zImage
+            ./split_img/Image.gz-dtb
+          if-no-files-found: warn
