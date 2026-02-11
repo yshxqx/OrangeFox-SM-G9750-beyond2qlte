@@ -1,0 +1,8 @@
+/boot           /dev/block/bootdevice/by-name/boot      emmc
+/recovery       /dev/block/bootdevice/by-name/recovery  emmc
+/data            /dev/block/bootdevice/by-name/userdata  ext4
+/system          /dev/block/bootdevice/by-name/system    ext4
+/vendor          /dev/block/bootdevice/by-name/vendor    ext4
+/cache           /dev/block/bootdevice/by-name/cache     ext4
+/efs             /dev/block/bootdevice/by-name/efs       emmc
+/modem           /dev/block/bootdevice/by-name/modem     emmc
