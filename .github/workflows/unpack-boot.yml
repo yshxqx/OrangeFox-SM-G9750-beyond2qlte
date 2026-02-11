@@ -6,31 +6,27 @@ jobs:
   unpack_bootimg:
     runs-on: ubuntu-latest
     steps:
-      - name: 检出仓库（含boot.img）
+      - name: 检出仓库（含 boot.img）
         uses: actions/checkout@v4
 
-      - name: 安装官方要求的依赖
+      - name: 安装所有依赖
         run: |
-          sudo apt update && sudo apt install -y wget tar gzip bzip2 lzop xz-utils cpio bsdmainutils openjdk-8-jre git
-          sudo update-alternatives --set java /usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java
+          sudo apt update && sudo apt install -y wget git cpio lzop xz-utils bsdmainutils
 
-      - name: 克隆AIK-Linux镜像仓库（含所有可执行文件）
-        run: git clone https://github.com/SebaUbuntu/AIK-Linux-mirror.git aik
+      - name: 克隆 AIK-Linux 官方镜像（含全部可执行文件）
+        run: git clone https://github.com/osm0sis/Android-Image-Kitchen.git aik
 
-      - name: 赋予脚本执行权限
-        run: chmod +x ./aik/unpackimg.sh ./aik/repackimg.sh ./aik/cleanup.sh
+      - name: 进入目录并执行解包
+        run: |
+          cd aik
+          chmod +x unpackimg.sh
+          ./unpackimg.sh --local ../boot.img
 
-      - name: 执行解包
-        run: ./aik/unpackimg.sh --local boot.img
-
-      - name: 列出解包结果
-        run: ls -la ./split_img/ ./ramdisk/
-
-      - name: 上传内核文件
+      - name: 上传解包后的内核文件
         uses: actions/upload-artifact@v4
         with:
           name: kernel-files
           path: |
-            ./split_img/boot.img-zImage
-            ./split_img/Image.gz-dtb
+            aik/split_img/boot.img-zImage
+            aik/split_img/Image.gz-dtb
           if-no-files-found: warn
