@@ -1,0 +1,50 @@
+name: Build OrangeFox for S10+ G9750
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 150
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y git zip lz4 liblz4-tool repo ccache
+
+      - name: Sync OrangeFox 12.1
+        run: |
+          mkdir fox
+          cd fox
+          repo init -u https://gitlab.com/OrangeFox/manifest -b fox_12.1
+          repo sync -j8 --force-sync
+
+      - name: Copy device tree
+        run: |
+          cp -r ./device fox/
+
+      - name: Build
+        run: |
+          cd fox
+          source build/envsetup.sh
+          export ALLOW_MISSING_DEPENDENCIES=true
+          export FOX_BUILD_TYPE=Unofficial
+          export OF_TARGET_DEVICES=beyond2qlte
+          lunch twrp_beyond2qlte-eng
+          mka recoveryimage -j4
+
+      - name: Package to Odin tar
+        run: |
+          cd fox/out/target/product/beyond2qlte
+          tar -cvf OrangeFox_G9750_Odin.tar recovery.img
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: OrangeFox_G9750
+          path: fox/out/target/product/beyond2qlte/*.tar
