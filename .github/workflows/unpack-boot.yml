@@ -1,33 +1,41 @@
-name: 自动解包 boot.img 提取内核
+name: 自动解包 boot.img
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:  # 手动触发运行
 
 jobs:
-  unpack:
+  unpack_bootimg:
     runs-on: ubuntu-latest
     steps:
-      - name: 拉取仓库
+      # 1. 检出仓库代码（包含上传的 boot.img）
+      - name: 检出仓库
         uses: actions/checkout@v4
 
-      - name: 下载解包工具
+      # 2. 安装必要依赖
+      - name: 安装依赖
         run: |
-          wget -O aik.zip https://github.com/osm0sis/Android-Image-Kitchen/releases/download/AIK-v3.8/Android_Image_Kitchen_v3.8_linux.zip
-          unzip aik.zip -d aik
+          sudo apt update
+          sudo apt install -y wget unzip cpio
 
+      # 3. 下载最新可用的 AIK 解包工具（修复 404 问题）
+      - name: 下载解包工具
+        run: wget -O aik.zip https://github.com/osm0sis/Android-Image-Kitchen/releases/download/v3.10/Android_Image_Kitchen_v3.10.zip
+
+      # 4. 解压解包工具
+      - name: 解压工具
+        run: unzip -q aik.zip -d aik
+
+      # 5. 进入工具目录，解包 boot.img
       - name: 解包 boot.img
         run: |
-          cp boot.img aik/
           cd aik
           chmod +x unpackimg.sh
-          ./unpackimg.sh boot.img
+          ./unpackimg.sh ../boot.img
 
-      - name: 提取内核并重命名
-        run: |
-          cp aik/split_img/boot.img-zImage Image.gz-dtb
-
-      - name: 上传提取好的内核文件
+      # 6. 上传解包后的 Image.gz-dtb 文件（供下载）
+      - name: 上传解包结果
         uses: actions/upload-artifact@v4
         with:
           name: Image.gz-dtb
-          path: Image.gz-dtb
+          path: aik/split_img/boot.img-zImage  # 不同版本AIK路径可能是 Image.gz-dtb 或 boot.img-zImage
+          if-no-files-found: error  # 没找到文件时报错，方便排查
