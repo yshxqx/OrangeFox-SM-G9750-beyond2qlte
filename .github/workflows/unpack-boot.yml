@@ -11,16 +11,11 @@ jobs:
 
       - name: 安装官方要求的依赖
         run: |
-          sudo apt update && sudo apt install -y wget tar gzip bzip2 lzop xz-utils cpio bsdmainutils openjdk-8-jre
+          sudo apt update && sudo apt install -y wget tar gzip bzip2 lzop xz-utils cpio bsdmainutils openjdk-8-jre git
           sudo update-alternatives --set java /usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java
 
-      - name: 创建AIK目录
-        run: mkdir -p aik
-
-      - name: 从GitHub下载AIK-Linux v3.8完整包（可直接访问，无需登录）
-        run: |
-          wget -O aik.zip https://github.com/osm0sis/Android-Image-Kitchen/releases/download/v3.8/AIK-Linux-v3.8-ALL.zip
-          unzip -q aik.zip -d aik
+      - name: 克隆AIK-Linux镜像仓库（含所有可执行文件）
+        run: git clone https://github.com/SebaUbuntu/AIK-Linux-mirror.git aik
 
       - name: 赋予脚本执行权限
         run: chmod +x ./aik/unpackimg.sh ./aik/repackimg.sh ./aik/cleanup.sh
