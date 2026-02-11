@@ -1,0 +1,33 @@
+name: 自动解包 boot.img 提取内核
+
+on:
+  workflow_dispatch:
+
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取仓库
+        uses: actions/checkout@v4
+
+      - name: 下载解包工具
+        run: |
+          wget -O aik.zip https://github.com/osm0sis/Android-Image-Kitchen/releases/download/AIK-v3.8/Android_Image_Kitchen_v3.8_linux.zip
+          unzip aik.zip -d aik
+
+      - name: 解包 boot.img
+        run: |
+          cp boot.img aik/
+          cd aik
+          chmod +x unpackimg.sh
+          ./unpackimg.sh boot.img
+
+      - name: 提取内核并重命名
+        run: |
+          cp aik/split_img/boot.img-zImage Image.gz-dtb
+
+      - name: 上传提取好的内核文件
+        uses: actions/upload-artifact@v4
+        with:
+          name: Image.gz-dtb
+          path: Image.gz-dtb
