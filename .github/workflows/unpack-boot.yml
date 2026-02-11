@@ -1,56 +1,41 @@
-name: Extract Image.gz-dtb from boot.img
-
+name: Unpack boot.img to Image.gz-dtb
 on:
-  # 手动触发（无需输入参数）
   workflow_dispatch:
-  # 当 push 修改根目录 boot.img 时自动运行
-  push:
-    paths:
-      - 'boot.img'
-    branches:
-      - main
+    inputs:
+      bootimg:
+        description: 'Path to boot.img'
+        required: false
+        default: 'boot.img'
 
 jobs:
-  extract:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: 检出仓库
+      - name: Check out
         uses: actions/checkout@v4
 
-      - name: 检查 boot.img 是否存在
+      - name: Install dependencies
         run: |
-          if [ ! -f "boot.img" ]; then
-            echo "❌ 仓库根目录未找到 boot.img"
-            exit 1
-          fi
-          echo "✅ 找到 boot.img"
-          file boot.img
+          sudo apt update
+          sudo apt install -y wget cpio unzip
 
-      - name: 获取 magiskboot
+      - name: Download magiskboot
         run: |
-          MAGISK_APK_URL=$(curl -s https://api.github.com/repos/topjohnwu/Magisk/releases/latest \
-            | grep "browser_download_url.*Magisk-.*\.apk" | cut -d '"' -f 4)
-          wget -O magisk.apk "$MAGISK_APK_URL"
-          unzip magisk.apk "lib/x86_64/libmagiskboot.so" -d magisk_extract
-          mv magisk_extract/lib/x86_64/libmagiskboot.so magiskboot
+          wget -O magisk.apk https://github.com/topjohnwu/Magisk/releases/latest/download/Magisk.apk
+          unzip -q magisk.apk lib/x86_64/libmagiskboot.so
+          mv lib/x86_64/libmagiskboot.so magiskboot
           chmod +x magiskboot
 
-      - name: 解包 boot.img
-        run: ./magiskboot unpack boot.img
-
-      - name: 提取 Image.gz-dtb
+      - name: Unpack boot.img
         run: |
-          if [ -f "kernel" ]; then
-            cp kernel Image.gz-dtb
-            echo "✅ Image.gz-dtb 提取成功"
-            file Image.gz-dtb
-          else
-            echo "⚠️ 未找到 kernel 文件，解包可能失败或格式特殊"
-          fi
+          ./magiskboot unpack ${{ github.event.inputs.bootimg }}
 
-      - name: 上传 Image.gz-dtb
+      - name: Rename kernel to Image.gz-dtb
+        run: |
+          mv kernel Image.gz-dtb
+
+      - name: Upload Image.gz-dtb
         uses: actions/upload-artifact@v4
         with:
-          name: Image.gz-dtb_${{ github.run_id }}
+          name: Image.gz-dtb
           path: Image.gz-dtb
-          if-no-files-found: error
