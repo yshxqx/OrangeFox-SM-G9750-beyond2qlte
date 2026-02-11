@@ -17,21 +17,31 @@ jobs:
           sudo apt update
           sudo apt install -y git cpio
 
-      # 3. 直接克隆 AIK 仓库（最稳妥，不会有 404）
+      # 3. 直接克隆 AIK 仓库
       - name: 克隆解包工具
         run: git clone https://github.com/osm0sis/Android-Image-Kitchen.git aik
 
-      # 4. 进入工具目录，解包 boot.img
+      # 4. 调试：列出 aik 目录下的所有文件
+      - name: 列出 aik 目录文件
+        run: ls -la aik
+
+      # 5. 解包 boot.img（尝试执行所有可能的脚本名）
       - name: 解包 boot.img
         run: |
           cd aik
-          chmod +x unpackimg.sh
-          ./unpackimg.sh ../boot.img
+          # 先看一下有哪些 .sh 文件
+          ls -la *.sh
+          # 尝试执行正确的脚本
+          chmod +x unpackimg.sh || true
+          ./unpackimg.sh ../boot.img || true
+          # 如果上面失败，再试 unpacking.sh
+          chmod +x unpacking.sh || true
+          ./unpacking.sh ../boot.img || true
 
-      # 5. 上传解包后的内核文件
+      # 6. 上传解包后的内核文件
       - name: 上传解包结果
         uses: actions/upload-artifact@v4
         with:
           name: Image.gz-dtb
-          path: aik/split_img/boot.img-zImage  # 或 aik/split_img/Image.gz-dtb，根据实际生成的文件名调整
+          path: aik/split_img/boot.img-zImage  # 或 aik/split_img/Image.gz-dtb
           if-no-files-found: error
