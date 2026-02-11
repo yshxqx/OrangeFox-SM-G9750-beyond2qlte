@@ -1,7 +1,6 @@
 name: Unpack boot.img from Repository
 
 on:
-  # 手动触发：允许指定 boot.img 在仓库中的路径（默认为根目录的 boot.img）
   workflow_dispatch:
     inputs:
       bootimg_path:
@@ -9,8 +8,6 @@ on:
         required: false
         default: 'boot.img'
         type: string
-
-  # 可选：当 push 修改根目录的 boot.img 时自动运行
   push:
     paths:
       - 'boot.img'
@@ -31,45 +28,45 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "BOOTIMG_PATH=${{ github.event.inputs.bootimg_path }}" >> $GITHUB_ENV
           else
-            # push 触发时默认使用 boot.img
             echo "BOOTIMG_PATH=boot.img" >> $GITHUB_ENV
           fi
 
       - name: 检查 boot.img 是否存在
         run: |
-          if [ ! -f "${{ env.BOOTIMG_PATH }}" ]; then
-            echo "错误：未找到 ${{ env.BOOTIMG_PATH }}"
-            exit 1
-          fi
-          echo "将解包: ${{ env.BOOTIMG_PATH }}"
+          [ -f "${{ env.BOOTIMG_PATH }}" ] || { echo "未找到 ${{ env.BOOTIMG_PATH }}"; exit 1; }
           file "${{ env.BOOTIMG_PATH }}"
 
-      - name: 获取 magiskboot（从 Magisk APK 提取）
+      - name: 获取 magiskboot
         run: |
           MAGISK_APK_URL=$(curl -s https://api.github.com/repos/topjohnwu/Magisk/releases/latest \
-            | grep "browser_download_url.*Magisk-.*\.apk" \
-            | cut -d '"' -f 4)
+            | grep "browser_download_url.*Magisk-.*\.apk" | cut -d '"' -f 4)
           wget -O magisk.apk "$MAGISK_APK_URL"
           unzip magisk.apk "lib/x86_64/libmagiskboot.so" -d magisk_extract
           mv magisk_extract/lib/x86_64/libmagiskboot.so magiskboot
           chmod +x magiskboot
           rm -rf magisk.apk magisk_extract
-          echo "magiskboot 就绪"
 
       - name: 使用 magiskboot 解包 boot.img
         run: |
           ./magiskboot unpack "${{ env.BOOTIMG_PATH }}"
           ls -la
 
-      - name: （可选）解压 ramdisk.cpio
+      - name: 解压 ramdisk.cpio（可选）
         run: |
           if [ -f "ramdisk.cpio" ]; then
-            echo "解压 ramdisk.cpio → ramdisk/ 目录"
             mkdir -p ramdisk
             (cd ramdisk && cpio -idm --quiet < ../ramdisk.cpio)
-            ls -la ramdisk/
+          fi
+
+      # ✅ 新增：提取 Image.gz-dtb（将解包出的 kernel 重命名）
+      - name: 提取 Image.gz-dtb
+        run: |
+          if [ -f "kernel" ]; then
+            cp kernel Image.gz-dtb
+            echo "✅ 成功提取 Image.gz-dtb（原始 kernel 已复制）"
+            file Image.gz-dtb
           else
-            echo "未发现 ramdisk.cpio，跳过解压"
+            echo "⚠️ 未找到 kernel 文件，无法提取 Image.gz-dtb"
           fi
 
       - name: 上传解包产物
@@ -78,6 +75,7 @@ jobs:
           name: unpacked_boot_${{ github.run_id }}
           path: |
             kernel
+            Image.gz-dtb          # ⬅️ 新增的 Image.gz-dtb 文件
             ramdisk.cpio
             ramdisk/
             second
