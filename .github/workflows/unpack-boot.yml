@@ -17,9 +17,9 @@ jobs:
           sudo apt update
           sudo apt install -y wget unzip cpio
 
-      # 3. 下载最新可用的 AIK 解包工具（修复 404 问题）
+      # 3. 下载正确的 AIK 解包工具（修复 404 问题）
       - name: 下载解包工具
-        run: wget -O aik.zip https://github.com/osm0sis/Android-Image-Kitchen/releases/download/v3.10/Android_Image_Kitchen_v3.10.zip
+        run: wget -O aik.zip https://github.com/osm0sis/Android-Image-Kitchen/releases/download/v3.8/Android_Image_Kitchen_v3.8_LINUX.zip
 
       # 4. 解压解包工具
       - name: 解压工具
